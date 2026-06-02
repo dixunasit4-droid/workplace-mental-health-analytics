@@ -1,4 +1,4 @@
-# workplace-mental-health-analytics
+# workplace-mental-health-analytics portfolio project
 # 📊 Workplace Mental Health & Productivity Analytics
 
 ## 📌 Project Overview
