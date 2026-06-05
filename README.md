@@ -58,17 +58,17 @@ ORDER BY avg_stress_level DESC;
 ```sql
 SELECT 
     year,
-    count(record_id) AS Total_record
+    COUNT(record_id) AS total_participants
 FROM mental_health.mental_health_workplace 
 GROUP BY year
-ORDER BY count(record_id) desc;
+ORDER BY total_participants desc;
 ```
 
 #### Q5: Top 10 most represented countries in the study.
 ```sql
 SELECT 
     country, 
-    count(*) AS Total_Country
+    COUNT(*) AS total_participants
 FROM mental_health.mental_health_workplace
 GROUP BY country
 ORDER BY count(*) desc limit 10;
@@ -105,14 +105,14 @@ group by gender;
 ```sql
 SELECT 
     work_model,
-    COUNT(*) AS Total_work_model ,
-    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM mental_health.mental_health_workplace), 2) AS percentage
+    COUNT(*) AS employee_count ,
+    ROUND(employee_count * 100.0 / (SELECT employee_count FROM mental_health.mental_health_workplace), 2) AS percentage
 FROM 
     mental_health.mental_health_workplace
 GROUP BY 
     work_model
 ORDER BY 
-    AS Total_work_model DESC;
+    AS employee_count DESC;
 ```
 
 #### Q10 Burnout & Work-Life Balance vs. Overtime Compare the average burnout_risk_score and average work_life_balance_score between two groups:                   employees who perform overtime hours (>0) vs. those who perform no overtime (=0).
