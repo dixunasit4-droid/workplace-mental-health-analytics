@@ -121,21 +121,25 @@ ORDER BY employee_count DESC;
 
 #### Q10 Burnout & Work-Life Balance vs. Overtime Compare the average burnout_risk_score and average work_life_balance_score between two groups:                   employees who perform overtime hours (>0) vs. those who perform no overtime (=0).
 ```sql
-SELECT 
-		CASE
-			WHEN weekly_overtime_hours > 0 THEN 'works overtime'
-            ELSE 'no overtime'
-		END AS 'o_t_status',
-        count(*),
-		ROUND(AVG(burnout_risk_score),2) as 'avg_burn_score', 
-		ROUND(AVG(work_life_balance_score),2) as 'avg_life_score'
-FROM 
-	mental_health.mental_health_workplace
-GROUP BY 
-		CASE
-			WHEN weekly_overtime_hours > 0 THEN 'works overtime'
-            ELSE 'no overtime'
-		END;
+SELECT
+    CASE
+        WHEN weekly_overtime_hours > 0 THEN 'Works Overtime'
+        ELSE 'No Overtime'
+    END AS o_t_status,
+
+    COUNT(*) AS employee_count,
+
+    ROUND(AVG(burnout_risk_score),2) AS avg_burn_score,
+
+    ROUND(AVG(work_life_balance_score),2) AS avg_life_score
+
+FROM mental_health_workplace
+
+GROUP BY
+    CASE
+        WHEN weekly_overtime_hours > 0 THEN 'Works Overtime'
+        ELSE 'No Overtime'
+    END;
 ```
 #### Q11 Industry Mental Health Risk Profiles Group the data by industry to find the average burnout_risk_score, average productivity_score, and total             annual absenteeism days. Sort the result from highest average burnout risk to lowest.
 ```sql
