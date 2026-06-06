@@ -110,16 +110,13 @@ group by gender;
 
 #### Q9 Work Model Distribution Find the exact count and percentage of employees working in each work_model (Remote, Hybrid, On-site).
 ```sql
-SELECT 
+SELECT
     work_model,
-    COUNT(*) AS employee_count ,
-    ROUND(employee_count * 100.0 / (SELECT employee_count FROM mental_health.mental_health_workplace), 2) AS percentage
-FROM 
-    mental_health.mental_health_workplace
-GROUP BY 
-    work_model
-ORDER BY 
-    AS employee_count DESC;
+    COUNT(*) AS employee_count,
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM mental_health.mental_health_workplace),2) AS percentage
+FROM mental_health.mental_health_workplace
+GROUP BY work_model
+ORDER BY employee_count DESC;
 ```
 
 #### Q10 Burnout & Work-Life Balance vs. Overtime Compare the average burnout_risk_score and average work_life_balance_score between two groups:                   employees who perform overtime hours (>0) vs. those who perform no overtime (=0).
