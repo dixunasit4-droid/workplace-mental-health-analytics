@@ -73,14 +73,21 @@ GROUP BY country
 ORDER BY count(*) desc limit 10;
 ```
 
-#### Q6:  Write a query to find the total number of records, the number of unique countries, and the list of unique industries represented in the dataset.
+#### Q6 Calculate the EAP utilization percentage for each country. The formula is the count of employees who used the EAP (used_eap = 'Yes') divided by           the total number of employees who have it available (eap_available = 'Yes').
 ```sql
 SELECT 
-    DISTINCT industry, 
-    COUNT(*) AS Total_industry
-FROM mental_health.mental_health_workplace
-GROUP BY industry
-ORDER BY Total_industry DESC;
+    country,
+    COUNT(CASE WHEN eap_available = 'Yes' THEN 1 END) AS eap_available_count,
+    COUNT(CASE WHEN eap_available = 'Yes' AND used_eap = 'Yes' THEN 1 END) AS eap_used_count,
+    ROUND(
+        COUNT(CASE WHEN eap_available = 'Yes' AND used_eap = 'Yes' THEN 1 END) * 100.0 / 
+        COUNT(CASE WHEN eap_available = 'Yes' THEN 1 END),2) AS eap_utilization_rate_pct
+FROM 
+    mental_health.mental_health_workplace
+GROUP BY 
+    country
+ORDER BY 
+    eap_utilization_rate_pct DESC LIMIT 10;
 ```
 
 #### Q7: Identifying High-Overtime job Roles.
@@ -92,6 +99,7 @@ SELECT
 FROM mental_health.mental_health_workplace
 GROUP BY job_role
 ORDER BY avg_overtime_hours DESC;
+```
 
 #### Q8: Base Salary Statistics by Gender
 ```sql
@@ -169,20 +177,3 @@ FROM mental_health.mental_health_workplace
 GROUP BY mental_health_policy_exists
 ORDER BY avg_job_satisfaction DESC;
 ```
-#### Q14 Calculate the EAP utilization percentage for each country. The formula is the count of employees who used the EAP (used_eap = 'Yes') divided by           the total number of employees who have it available (eap_available = 'Yes').
-```sql
-SELECT 
-    country,
-    COUNT(CASE WHEN eap_available = 'Yes' THEN 1 END) AS eap_available_count,
-    COUNT(CASE WHEN eap_available = 'Yes' AND used_eap = 'Yes' THEN 1 END) AS eap_used_count,
-    ROUND(
-        COUNT(CASE WHEN eap_available = 'Yes' AND used_eap = 'Yes' THEN 1 END) * 100.0 / 
-        COUNT(CASE WHEN eap_available = 'Yes' THEN 1 END),2) AS eap_utilization_rate_pct
-FROM 
-    mental_health.mental_health_workplace
-GROUP BY 
-    country
-ORDER BY 
-    eap_utilization_rate_pct DESC;
-```
-
