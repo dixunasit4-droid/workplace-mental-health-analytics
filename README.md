@@ -43,15 +43,14 @@ SELECT ROUND(AVG(burnout_risk_score),2) AS Avg_risk_score,
 	   FROM mental_health.mental_health_workplace
 WHERE job_role = "Nurse";
 ```
-#### Q3: Find which industries have the highest average stress levels for the year 2024.
+#### Q3: Which industry has the highest average salary?
 ```sql
-SELECT
-    industry,
-    ROUND(AVG(stress_level),2) AS avg_stress_level
+SELECT 
+	industry,
+    ROUND(AVG(annual_salary_usd),2) AS avg_annual_salary
 FROM mental_health.mental_health_workplace
-WHERE year = 2024
 GROUP BY industry
-ORDER BY avg_stress_level DESC;
+ORDER BY avg_annual_salary DESC;
 ```
 
 #### Q4: Total survey participants and data distribution by year.
