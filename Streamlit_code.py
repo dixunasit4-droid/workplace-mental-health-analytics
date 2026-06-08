@@ -1,0 +1,554 @@
+import streamlit as st
+import pandas as pd
+import mysql.connector
+import plotly.express as px
+import plotly.graph_objects as go
+
+# ---------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------
+st.set_page_config(
+    page_title="MindWork Analytics",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ---------------------------------------------------
+# CUSTOM CSS — Dark Teal / Charcoal Theme
+# ---------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── Global ── */
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #0d1117;
+    color: #e6edf3;
+}
+
+/* ── Main container ── */
+.main .block-container {
+    padding: 2rem 3rem;
+    background-color: #0d1117;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f2027 0%, #1a3a3a 60%, #0f2027 100%);
+    border-right: 1px solid #1e3a3a;
+}
+[data-testid="stSidebar"] * {
+    color: #a8d5d1 !important;
+}
+[data-testid="stSidebar"] .stSelectbox label {
+    color: #5fc7bc !important;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* ── Title ── */
+h1 {
+    font-family: 'DM Serif Display', serif !important;
+    font-size: 2.8rem !important;
+    background: linear-gradient(90deg, #5fc7bc, #38e8d8, #a8d5d1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+    margin-bottom: 0 !important;
+}
+
+h2, h3 {
+    font-family: 'DM Serif Display', serif !important;
+    color: #5fc7bc !important;
+}
+
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #1a2f2f 0%, #12252b 100%);
+    border: 1px solid #2a4a4a;
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    box-shadow: 0 4px 20px rgba(95,199,188,0.08);
+}
+[data-testid="stMetricValue"] {
+    font-size: 2rem !important;
+    font-weight: 600 !important;
+    color: #38e8d8 !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #7a9e9c !important;
+    font-size: 0.8rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #1e3a3a;
+}
+
+/* ── Divider ── */
+hr {
+    border-color: #1e3a3a !important;
+}
+
+/* ── Selectbox ── */
+[data-testid="stSelectbox"] > div > div {
+    background-color: #122020 !important;
+    border-color: #2a4a4a !important;
+    color: #a8d5d1 !important;
+    border-radius: 8px;
+}
+
+/* ── Page badge ── */
+.page-badge {
+    display: inline-block;
+    background: linear-gradient(90deg, #1e3f3f, #12282c);
+    border: 1px solid #2a4a4a;
+    border-radius: 20px;
+    padding: 0.3rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #5fc7bc;
+    margin-bottom: 0.6rem;
+}
+
+/* ── Section header ── */
+.section-header {
+    border-left: 3px solid #38e8d8;
+    padding-left: 0.8rem;
+    margin-bottom: 1.2rem;
+}
+
+/* ── Insight box ── */
+.insight-box {
+    background: linear-gradient(135deg, #0f2a2a 0%, #132020 100%);
+    border: 1px solid #2a4a4a;
+    border-radius: 10px;
+    padding: 1rem 1.4rem;
+    margin-top: 1rem;
+    font-size: 0.88rem;
+    color: #8ecec9;
+    line-height: 1.7;
+}
+.insight-box b { color: #5fc7bc; }
+
+/* ── Plotly chart background override ── */
+.js-plotly-plot .plotly .bg { fill: transparent !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# PLOTLY DARK TEMPLATE  (reusable)
+# ---------------------------------------------------
+CHART_THEME = dict(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(20,40,40,0.4)",
+    font_color="#a8d5d1",
+    font_family="DM Sans",
+    colorway=["#38e8d8","#5fc7bc","#2ab5a8","#7ad4cc","#1a8c82","#9be0da"],
+)
+
+def apply_theme(fig, title=""):
+    fig.update_layout(
+        **CHART_THEME,
+        title=dict(text=title, font_size=16, font_color="#5fc7bc"),
+        margin=dict(t=50, b=40, l=40, r=20),
+        legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)"),
+    )
+    fig.update_xaxes(gridcolor="#1e3a3a", zerolinecolor="#1e3a3a")
+    fig.update_yaxes(gridcolor="#1e3a3a", zerolinecolor="#1e3a3a")
+    return fig
+
+# ---------------------------------------------------
+# DATABASE CONNECTION  ← BUG FIX: never close it globally
+# ---------------------------------------------------
+@st.cache_resource
+def get_connection():
+    return mysql.connector.connect(
+        host="127.0.0.1",
+        user="root",
+        password="Dixu&bansu@4564",
+        database="mental_health",
+        autocommit=True          # keeps connection alive
+    )
+
+# ── Safe query helper ← BUG FIX: wraps every query ──
+def run_query(sql: str) -> pd.DataFrame:
+    try:
+        conn = get_connection()
+        # reconnect if stale
+        if not conn.is_connected():
+            conn.reconnect(attempts=3, delay=2)
+        return pd.read_sql(sql, conn)
+    except Exception as e:
+        st.error(f"⚠️ Database error: {e}")
+        return pd.DataFrame()
+
+# ---------------------------------------------------
+# SIDEBAR
+# ---------------------------------------------------
+with st.sidebar:
+    st.markdown("""
+    <div style='text-align:center; padding: 1rem 0 1.5rem;'>
+        <span style='font-size:2.5rem'>🧠</span>
+        <div style='font-family:"DM Serif Display",serif; font-size:1.1rem;
+             color:#38e8d8; margin-top:0.3rem;'>MindWork<br>Analytics</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    page = st.selectbox(
+        "SELECT ANALYSIS",
+        [
+            "🏠  Dashboard Overview",
+            "Q1  Job Role Breakdown",
+            "Q2  Nurses Burnout Analysis",
+            "Q3  Industry Stress Levels",
+            "Q4  Survey Distribution",
+            "Q5  Top Countries",
+            "Q6  Industry Representation",
+            "Q7  Overtime Analysis",
+            "Q8  Salary by Gender",
+            "Q9  Work Model Distribution",
+            "Q10 Burnout vs Overtime",
+
+        ],
+        index=0          # ← BUG FIX: always has a default
+    )
+
+    st.markdown("---")
+    st.markdown(
+        "<div style='font-size:0.72rem; color:#3d6b68; text-align:center;'>"
+        "Mental Health Workplace Dataset<br>Interactive Analysis Dashboard"
+        "</div>",
+        unsafe_allow_html=True
+    )
+
+# ---------------------------------------------------
+# HEADER
+# ---------------------------------------------------
+st.markdown("<h1>🧠 MindWork Analytics</h1>", unsafe_allow_html=True)
+st.markdown(
+    "<p style='color:#5a8a86; font-size:0.95rem; margin-top:-0.3rem; margin-bottom:1.5rem;'>"
+    "Workplace Mental Health · Burnout · Productivity · Policy Impact"
+    "</p>", unsafe_allow_html=True
+)
+
+# ── helper to render a page badge ──
+def badge(label):
+    st.markdown(f"<div class='page-badge'>{label}</div>", unsafe_allow_html=True)
+
+def insight(text):
+    st.markdown(f"<div class='insight-box'>💡 {text}</div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------
+# OVERVIEW
+# ---------------------------------------------------
+if page.startswith("🏠"):
+    badge("Overview · Key Metrics")
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    total_emp = run_query("SELECT COUNT(*) total FROM mental_health_workplace")
+    countries  = run_query("SELECT COUNT(DISTINCT country)  cnt FROM mental_health_workplace")
+    industries = run_query("SELECT COUNT(DISTINCT industry) cnt FROM mental_health_workplace")
+    avg_stress = run_query("SELECT ROUND(AVG(stress_level),2) val FROM mental_health_workplace")
+
+    if not total_emp.empty:
+        c1.metric("👥 Total Employees",  f"{int(total_emp.iloc[0,0]):,}")
+        c2.metric("🌍 Countries",         int(countries.iloc[0,0]))
+        c3.metric("🏭 Industries",        int(industries.iloc[0,0]))
+        c4.metric("😓 Avg Stress Level",  avg_stress.iloc[0,0])
+
+    st.markdown("---")
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        df = run_query("""
+            SELECT work_model, COUNT(*) total
+            FROM mental_health_workplace GROUP BY work_model
+        """)
+        if not df.empty:
+            fig = px.pie(df, names="work_model", values="total",
+                         hole=0.45, title="Work Model Split")
+            apply_theme(fig, "Work Model Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col_b:
+        df2 = run_query("""
+            SELECT industry, ROUND(AVG(stress_level),2) avg_stress
+            FROM mental_health_workplace
+            GROUP BY industry ORDER BY avg_stress DESC LIMIT 8
+        """)
+        if not df2.empty:
+            fig2 = px.bar(df2, x="avg_stress", y="industry",
+                          orientation="h", color="avg_stress",
+                          color_continuous_scale=["#1a4a4a","#38e8d8"])
+            apply_theme(fig2, "Stress by Industry (Top 8)")
+            fig2.update_coloraxes(showscale=False)
+            st.plotly_chart(fig2, use_container_width=True)
+
+# ---------------------------------------------------
+# Q1
+# ---------------------------------------------------
+elif page.startswith("Q1"):
+    badge("Q1 · 2024 Workforce")
+    st.subheader("Job Role Breakdown — 2024")
+
+    df = run_query("""
+        SELECT job_role, COUNT(*) total_employees
+        FROM mental_health_workplace
+        WHERE year = 2024
+        GROUP BY job_role ORDER BY total_employees DESC
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="job_role", y="total_employees",
+                     color="total_employees",
+                     color_continuous_scale=["#1a4a4a","#38e8d8"],
+                     text="total_employees")
+        fig.update_traces(textposition="outside")
+        apply_theme(fig, "Employees per Job Role (2024)")
+        fig.update_coloraxes(showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------
+# Q2  ← BUG FIX: lowercase column name aliases
+# ---------------------------------------------------
+elif page.startswith("Q2"):
+    badge("Q2 · Nursing Workforce")
+    st.subheader("Nurses Burnout & Hours Analysis")
+
+    # BUG WAS HERE: alias names may return lowercase from connector
+    df = run_query("""
+        SELECT
+            ROUND(AVG(burnout_risk_score),2)  AS avg_risk_score,
+            ROUND(AVG(weekly_work_hours),2)   AS avg_weekly_hours
+        FROM mental_health_workplace
+        WHERE job_role = 'Nurse'
+    """)
+    if not df.empty:
+        c1, c2 = st.columns(2)
+        c1.metric("🔥 Avg Burnout Risk Score", df.iloc[0]["avg_risk_score"])
+        c2.metric("⏰ Avg Weekly Hours",        df.iloc[0]["avg_weekly_hours"])
+
+        insight("Nurses often show high burnout risk correlating with long weekly hours. "
+                "Compare these numbers against other roles to see the gap.")
+
+        # Extra: distribution chart
+        df2 = run_query("""
+            SELECT job_role,
+                   ROUND(AVG(burnout_risk_score),2) avg_burn,
+                   ROUND(AVG(weekly_work_hours),2)  avg_hrs
+            FROM mental_health_workplace
+            GROUP BY job_role ORDER BY avg_burn DESC
+        """)
+        if not df2.empty:
+            fig = px.scatter(df2, x="avg_hrs", y="avg_burn", text="job_role",
+                             color="avg_burn",
+                             color_continuous_scale=["#1a4a4a","#ff6b6b"])
+            fig.update_traces(textposition="top center")
+            apply_theme(fig, "Burnout vs Hours — All Roles (Nurses highlighted)")
+            fig.update_coloraxes(showscale=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q3
+# ---------------------------------------------------
+elif page.startswith("Q3"):
+    badge("Q3 · Stress Landscape")
+    st.subheader("Industry Stress Levels — 2024")
+
+    df = run_query("""
+        SELECT industry, ROUND(AVG(stress_level),2) avg_stress_level
+        FROM mental_health_workplace
+        WHERE year = 2024
+        GROUP BY industry ORDER BY avg_stress_level DESC
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="avg_stress_level", y="industry",
+                     orientation="h", color="avg_stress_level",
+                     color_continuous_scale=["#1a6b60","#ff6b6b"])
+        apply_theme(fig, "Average Stress Level by Industry (2024)")
+        fig.update_coloraxes(showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+        insight(f"<b>{df.iloc[0]['industry']}</b> has the highest avg stress at "
+                f"<b>{df.iloc[0]['avg_stress_level']}</b>. "
+                "Darker red = higher stress risk.")
+
+# ---------------------------------------------------
+# Q4
+# ---------------------------------------------------
+elif page.startswith("Q4"):
+    badge("Q4 · Survey History")
+    st.subheader("Survey Participation by Year")
+
+    df = run_query("""
+        SELECT year, COUNT(record_id) participants
+        FROM mental_health_workplace
+        GROUP BY year ORDER BY year
+    """)
+    if not df.empty:
+        fig = px.area(df, x="year", y="participants", markers=True,
+                      color_discrete_sequence=["#38e8d8"])
+        fig.update_traces(fill="tozeroy",
+                          fillcolor="rgba(56,232,216,0.12)",
+                          line_width=2.5)
+        apply_theme(fig, "Survey Participation Trend")
+        st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q5
+# ---------------------------------------------------
+elif page.startswith("Q5"):
+    badge("Q5 · Global Reach")
+    st.subheader("Top 10 Countries by Participants")
+
+    df = run_query("""
+        SELECT country, COUNT(*) total
+        FROM mental_health_workplace
+        GROUP BY country ORDER BY total DESC LIMIT 10
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="country", y="total", text="total",
+                     color="total",
+                     color_continuous_scale=["#1a4a4a","#38e8d8"])
+        fig.update_traces(textposition="outside")
+        apply_theme(fig, "Top 10 Countries by Participant Count")
+        fig.update_coloraxes(showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q6
+# ---------------------------------------------------
+elif page.startswith("Q6"):
+    badge("Q6 · Industry Mix")
+    st.subheader("Industry Representation")
+
+    df = run_query("""
+        SELECT industry, COUNT(*) total_industry
+        FROM mental_health_workplace
+        GROUP BY industry ORDER BY total_industry DESC
+    """)
+    if not df.empty:
+        fig = px.treemap(df, path=["industry"], values="total_industry",
+                         color="total_industry",
+                         color_continuous_scale=["#1a3a3a","#38e8d8"])
+        apply_theme(fig, "Industry Share — Treemap")
+        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+# ---------------------------------------------------
+# Q7
+# ---------------------------------------------------
+elif page.startswith("Q7"):
+    badge("Q7 · Overtime Burden")
+    st.subheader("Overtime Hours by Job Role")
+
+    df = run_query("""
+        SELECT job_role,
+               SUM(weekly_overtime_hours)          total_overtime_hours,
+               ROUND(AVG(weekly_overtime_hours),2) avg_overtime_hours
+        FROM mental_health_workplace
+        GROUP BY job_role ORDER BY avg_overtime_hours DESC
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="job_role", y="avg_overtime_hours",
+                     color="avg_overtime_hours",
+                     color_continuous_scale=["#1a4a4a","#f4a261"],
+                     text=df["avg_overtime_hours"])
+        fig.update_traces(textposition="outside")
+        apply_theme(fig, "Average Weekly Overtime Hours per Role")
+        fig.update_coloraxes(showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q8
+# ---------------------------------------------------
+elif page.startswith("Q8"):
+    badge("Q8 · Pay Equity")
+    st.subheader("Average Salary by Gender")
+
+    df = run_query("""
+        SELECT gender, ROUND(AVG(annual_salary_usd),2) avg_salary
+        FROM mental_health_workplace
+        GROUP BY gender
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="gender", y="avg_salary",
+                     text="avg_salary",
+                     color="gender",
+                     color_discrete_sequence=["#38e8d8","#f4a261","#a29bfe"])
+        fig.update_traces(textposition="outside")
+        apply_theme(fig, "Average Annual Salary (USD) by Gender")
+        st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q9
+# ---------------------------------------------------
+elif page.startswith("Q9"):
+    badge("Q9 · Work Model")
+    st.subheader("Work Model Distribution")
+
+    df = run_query("""
+        SELECT work_model,
+               COUNT(*) employees,
+               ROUND(COUNT(*)*100.0 /
+                   (SELECT COUNT(*) FROM mental_health_workplace),2) percentage
+        FROM mental_health_workplace
+        GROUP BY work_model
+    """)
+    if not df.empty:
+        fig = px.pie(df, names="work_model", values="employees", hole=0.5,
+                     color_discrete_sequence=["#38e8d8","#f4a261","#a29bfe","#55efc4"])
+        fig.update_traces(textinfo="percent+label")
+        apply_theme(fig, "Work Model Split")
+        st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------
+# Q10
+# ---------------------------------------------------
+elif page.startswith("Q10"):
+    badge("Q10 · Burnout Drivers")
+    st.subheader("Burnout vs Overtime Status")
+
+    df = run_query("""
+        SELECT
+            CASE WHEN weekly_overtime_hours > 0 THEN 'Works Overtime'
+                 ELSE 'No Overtime' END AS overtime_status,
+            ROUND(AVG(burnout_risk_score),2)    avg_burnout,
+            ROUND(AVG(work_life_balance_score),2) avg_worklife
+        FROM mental_health_workplace
+        GROUP BY overtime_status
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            fig1 = px.bar(df, x="overtime_status", y="avg_burnout",
+                          color="overtime_status",
+                          color_discrete_sequence=["#38e8d8","#ff6b6b"])
+            apply_theme(fig1, "Avg Burnout Risk")
+            st.plotly_chart(fig1, use_container_width=True)
+        with c2:
+            fig2 = px.bar(df, x="overtime_status", y="avg_worklife",
+                          color="overtime_status",
+                          color_discrete_sequence=["#38e8d8","#f4a261"])
+            apply_theme(fig2, "Avg Work-Life Balance Score")
+            st.plotly_chart(fig2, use_container_width=True)
+        insight("Employees who work overtime show <b>higher burnout</b> and "
+                "<b>lower work-life balance</b> — a clear signal for HR teams.")
+
+
+
+
+# ── NO conn.close() here — cache_resource manages lifecycle ──
